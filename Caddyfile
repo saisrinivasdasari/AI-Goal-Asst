@@ -1,0 +1,23 @@
+# Caddyfile: Production reverse proxy with automated Let's Encrypt TLS
+# Used when hosting Ollama or Jarvis on a remote GPU server
+
+# Remote Ollama AI Gateway with Basic Auth
+ai.jarvis-os.local {
+    # Reverse proxy to Ollama runtime
+    reverse_proxy localhost:11434 {
+        header_up Host {upstream_hostport}
+        header_up X-Real-IP {remote_host}
+    }
+
+    # Enable gzip & zstd compression
+    encode gzip zstd
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
+
