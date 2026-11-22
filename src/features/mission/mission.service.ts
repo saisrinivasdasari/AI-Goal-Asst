@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { CapacityService } from "@/features/capacity/capacity.service";
 import { NotFoundError } from "@/lib/errors";
-import { TaskStatus } from "@prisma/client";
+import { TaskStatus, MemoryType } from "@prisma/client";
 
 export class MissionService {
   /**
@@ -13,6 +13,39 @@ export class MissionService {
     const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
     const tomorrow = new Date(today);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+
+    // 1. Silent Overnight Rollover: Automatically roll forward any uncompleted tasks from past days
+    try {
+      const overduePending = await prisma.taskInstance.findMany({
+        where: {
+          scheduledDate: { lt: today },
+          status: { in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] },
+          task: {
+            weeklyTarget: {
+              milestone: {
+                goal: { userId, status: "ACTIVE" },
+              },
+            },
+          },
+        },
+        select: { id: true, rescheduledCount: true, scheduledDate: true },
+      });
+
+      if (overduePending.length > 0) {
+        for (const item of overduePending) {
+          await prisma.taskInstance.update({
+            where: { id: item.id },
+            data: {
+              scheduledDate: today,
+              rescheduledCount: item.rescheduledCount + 1,
+              notes: `Rolled forward to today from ${item.scheduledDate.toISOString().split("T")[0]}`,
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("[Silent Rollover Warning]:", err);
+    }
 
     // Fetch tasks scheduled for today
     const instances = await prisma.taskInstance.findMany({
@@ -301,6 +334,248 @@ export class MissionService {
       shiftedCount: pending.length,
       days: shiftDays,
       message: `Rest mode activated for ${shiftDays} day(s). ${pending.length} tasks smoothly shifted forward. Zero guilt—enjoy your break!`,
+    };
+  }
+
+  /**
+   * 1-Tap Deferral: Pushes a specific task forward to tomorrow or the weekend
+   * and calculates the recalculated goal arrival horizon (GPS Road Trip model).
+   */
+  static async deferTask(userId: string, taskInstanceId: string, days: number = 1) {
+    const instance = await prisma.taskInstance.findFirst({
+      where: {
+        id: taskInstanceId,
+        task: {
+          weeklyTarget: {
+            milestone: {
+              goal: { userId },
+            },
+          },
+        },
+      },
+      include: {
+        task: {
+          include: {
+            weeklyTarget: {
+              include: {
+                milestone: {
+                  include: { goal: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!instance) {
+      throw new NotFoundError("Task instance not found or access denied");
+    }
+
+    const previousDate = instance.scheduledDate.toISOString().split("T")[0];
+    const now = new Date();
+    let newDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+    if (days === 0) {
+      // Defer to this upcoming Saturday (weekend focus)
+      const dayOfWeek = newDate.getUTCDay();
+      const daysUntilSaturday = (6 - dayOfWeek + 7) % 7 || 7;
+      newDate.setUTCDate(newDate.getUTCDate() + daysUntilSaturday);
+    } else {
+      newDate.setUTCDate(newDate.getUTCDate() + days);
+    }
+
+    const updated = await prisma.taskInstance.update({
+      where: { id: instance.id },
+      data: {
+        scheduledDate: newDate,
+        rescheduledCount: instance.rescheduledCount + 1,
+        notes: `Deferred from ${previousDate}`,
+      },
+    });
+
+    // Calculate goal finish line horizon impact
+    const goal = instance.task.weeklyTarget.milestone.goal;
+    const currentGoalTarget = new Date(goal.targetDate);
+    const newProjectedDate = new Date(currentGoalTarget);
+    newProjectedDate.setDate(newProjectedDate.getDate() + (days || 1));
+
+    const dayLabel = days === 0 ? "this Saturday" : days === 1 ? "tomorrow" : `in ${days} days`;
+
+    return {
+      success: true,
+      taskInstanceId: updated.id,
+      taskTitle: instance.task.title,
+      goalTitle: goal.title,
+      previousDate,
+      newDate: newDate.toISOString().split("T")[0],
+      rescheduledCount: updated.rescheduledCount,
+      projectedArrivalDate: newProjectedDate.toISOString().split("T")[0],
+      message: `Moved "${instance.task.title}" to ${dayLabel}. Projected arrival: ${newProjectedDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}.`,
+    };
+  }
+
+  /**
+   * Instant Undo: Reverts a task to its previous date (e.g. if tapped by accident)
+   */
+  static async undoTaskAction(userId: string, taskInstanceId: string, previousDate: string) {
+    const instance = await prisma.taskInstance.findFirst({
+      where: {
+        id: taskInstanceId,
+        task: {
+          weeklyTarget: {
+            milestone: {
+              goal: { userId },
+            },
+          },
+        },
+      },
+      include: { task: true },
+    });
+
+    if (!instance) {
+      throw new NotFoundError("Task instance not found or access denied");
+    }
+
+    const restoredDate = new Date(previousDate + "T00:00:00.000Z");
+
+    const updated = await prisma.taskInstance.update({
+      where: { id: instance.id },
+      data: {
+        scheduledDate: restoredDate,
+        rescheduledCount: Math.max(0, instance.rescheduledCount - 1),
+        notes: `Restored to ${previousDate} via undo`,
+      },
+    });
+
+    return {
+      success: true,
+      taskInstanceId: updated.id,
+      taskTitle: instance.task.title,
+      restoredDate: previousDate,
+      message: `Action undone. "${instance.task.title}" restored back to ${previousDate}.`,
+    };
+  }
+
+  /**
+   * Shrinks a daunting task into a 10-minute micro-starter to break inertia
+   */
+  static async shrinkTaskToMicroStep(userId: string, taskInstanceId: string, targetMinutes: number = 10) {
+    const instance = await prisma.taskInstance.findFirst({
+      where: {
+        id: taskInstanceId,
+        task: {
+          weeklyTarget: {
+            milestone: {
+              goal: { userId },
+            },
+          },
+        },
+      },
+      include: {
+        task: {
+          include: {
+            weeklyTarget: {
+              include: {
+                milestone: {
+                  include: { goal: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!instance) {
+      throw new NotFoundError("Task instance not found or access denied");
+    }
+
+    // Update task estimated minutes to 10m micro-step
+    await prisma.task.update({
+      where: { id: instance.task.id },
+      data: {
+        estimatedMinutes: targetMinutes,
+      },
+    });
+
+    const updatedInstance = await prisma.taskInstance.update({
+      where: { id: instance.id },
+      data: {
+        notes: `Micro-starter mode: Shrunk to ${targetMinutes} mins to break inertia.`,
+      },
+    });
+
+    return {
+      success: true,
+      taskInstanceId: updatedInstance.id,
+      taskTitle: instance.task.title,
+      estimatedMinutes: targetMinutes,
+      message: `Task shrunk to a ${targetMinutes}-minute starter step! Just ${targetMinutes} minutes today to keep your goal alive.`,
+    };
+  }
+
+  /**
+   * Micro-Learning Capture: Automatically files a task takeaway into the Life Journal Playbook
+   */
+  static async saveLearningFromTask(userId: string, taskInstanceId: string, takeaway: string) {
+    const instance = await prisma.taskInstance.findFirst({
+      where: {
+        id: taskInstanceId,
+        task: {
+          weeklyTarget: {
+            milestone: {
+              goal: { userId },
+            },
+          },
+        },
+      },
+      include: {
+        task: {
+          include: {
+            weeklyTarget: {
+              include: {
+                milestone: {
+                  include: {
+                    goal: {
+                      include: { lifeArea: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!instance) {
+      throw new NotFoundError("Task instance not found or access denied");
+    }
+
+    const goal = instance.task.weeklyTarget.milestone.goal;
+    const topic = goal.title;
+
+    // Save as high-value UniversalMemory insight categorized under this discipline
+    const memory = await prisma.universalMemory.create({
+      data: {
+        userId,
+        goalId: goal.id,
+        lifeAreaId: goal.lifeAreaId,
+        type: MemoryType.LEARNING,
+        topic,
+        content: takeaway.trim(),
+        sourceContext: `Task Completion: ${instance.task.title}`,
+        importance: 4,
+      },
+    });
+
+    return {
+      success: true,
+      memoryId: memory.id,
+      topic,
+      takeaway: takeaway.trim(),
+      message: `Saved takeaway to your "${topic}" Playbook Vault!`,
     };
   }
 }

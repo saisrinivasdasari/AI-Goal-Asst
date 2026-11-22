@@ -10,14 +10,15 @@ import {
   RefreshCw,
   Flame,
   ArrowRight,
-  TrendingUp,
   Brain,
   Zap,
   Coffee,
   Calendar,
   Clock,
-  ChevronRight,
+  Heart,
+  BookOpen,
 } from "lucide-react";
+import { FloatingUndoToast } from "@/components/common/floating-undo-toast";
 
 interface TaskItem {
   id?: string;
@@ -31,15 +32,21 @@ interface TaskItem {
   requiredEnergy?: "HIGH" | "MEDIUM" | "LOW" | "RECOVERY" | "HIGH_FOCUS" | "LOW_RECOVERY";
   estimatedMinutes?: number;
   actualMinutes?: number;
+  rescheduledCount?: number;
   goalTitle?: string;
   whyReason?: string;
+  costOfInaction?: string;
+  dreamVision?: string;
+  isEnergyMatched?: boolean;
+  notes?: string;
   task?: {
     id: string;
     title: string;
     description?: string;
     priority: "P0_CRITICAL" | "P1_NORMAL" | "P2_OPTIONAL" | "P1_IMPORTANT";
     estimatedMinutes: number;
-    energyRequired: "HIGH" | "MEDIUM" | "LOW" | "RECOVERY" | "HIGH_FOCUS" | "LOW_RECOVERY";
+    energyRequired?: "HIGH" | "MEDIUM" | "LOW" | "RECOVERY" | "HIGH_FOCUS" | "LOW_RECOVERY";
+    requiredEnergy?: "HIGH" | "MEDIUM" | "LOW" | "RECOVERY" | "HIGH_FOCUS" | "LOW_RECOVERY";
     weeklyTarget?: {
       title: string;
       milestone?: {
@@ -48,6 +55,9 @@ interface TaskItem {
           id: string;
           title: string;
           whyStatement?: string;
+          whyReason?: string;
+          costOfInaction?: string;
+          dreamVision?: string;
         };
       };
     };
@@ -77,6 +87,13 @@ interface MissionData {
   };
 }
 
+interface UndoToastState {
+  id: string;
+  title: string;
+  message: string;
+  onUndo: () => Promise<void>;
+}
+
 export default function TodayMissionPage() {
   const [mission, setMission] = useState<MissionData | null>(null);
   const [upcoming, setUpcoming] = useState<TaskItem[]>([]);
@@ -88,6 +105,23 @@ export default function TodayMissionPage() {
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [applyingLeave, setApplyingLeave] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+
+  // Anti-procrastination & Goal-achiever states
+  const [undoToast, setUndoToast] = useState<UndoToastState | null>(null);
+  const [deferringTaskId, setDeferringTaskId] = useState<string | null>(null);
+  const [shrinkingTaskId, setShrinkingTaskId] = useState<string | null>(null);
+  const [journalInputId, setJournalInputId] = useState<string | null>(null);
+  const [journalText, setJournalText] = useState("");
+  const [savingJournal, setSavingJournal] = useState(false);
+  const [journalSavedId, setJournalSavedId] = useState<string | null>(null);
+  const [whyAnchorModal, setWhyAnchorModal] = useState<{
+    isOpen: boolean;
+    taskTitle: string;
+    goalTitle: string;
+    whyReason: string;
+    dreamVision?: string;
+    costOfInaction?: string;
+  } | null>(null);
 
   const fetchMission = async () => {
     try {
@@ -124,6 +158,13 @@ export default function TodayMissionPage() {
     fetchMission();
   }, []);
 
+  const getDaysToWeekend = () => {
+    const day = new Date().getDay(); // 0 is Sun, 6 is Sat
+    if (day === 6) return 1; // Sat -> Sun
+    if (day === 0) return 6; // Sun -> next Sat
+    return 6 - day; // Mon(1)->Sat(5), Fri(5)->Sat(1)
+  };
+
   const toggleTaskStatus = async (taskInstanceId: string, currentStatus: string) => {
     const newStatus = currentStatus === "COMPLETED" ? "PENDING" : "COMPLETED";
 
@@ -143,7 +184,7 @@ export default function TodayMissionPage() {
       return {
         ...prev,
         tasks: prev.tasks.map((t) =>
-          (t.id === taskInstanceId || t.instanceId === taskInstanceId)
+          t.id === taskInstanceId || t.instanceId === taskInstanceId
             ? { ...t, status: newStatus as any }
             : t
         ),
@@ -154,6 +195,16 @@ export default function TodayMissionPage() {
       };
     });
 
+    // If completed, open micro-journal prompt
+    if (newStatus === "COMPLETED") {
+      setJournalInputId(taskInstanceId);
+      setJournalText("");
+    } else {
+      if (journalInputId === taskInstanceId) {
+        setJournalInputId(null);
+      }
+    }
+
     try {
       await fetch(`/api/v1/tasks/${taskInstanceId}/status`, {
         method: "PATCH",
@@ -163,6 +214,117 @@ export default function TodayMissionPage() {
     } catch (err) {
       console.error("Failed to update status:", err);
       fetchMission();
+    }
+  };
+
+  const handleDeferTask = async (taskInstanceId: string, days: number, taskTitle: string) => {
+    try {
+      setDeferringTaskId(taskInstanceId);
+
+      // Optimistic removal from today's list
+      const originalMission = mission;
+      setMission((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          tasks: prev.tasks.filter(
+            (t) => t.id !== taskInstanceId && t.instanceId !== taskInstanceId
+          ),
+        };
+      });
+
+      const res = await fetch("/api/v1/missions/defer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskInstanceId, days }),
+      });
+      const json = await res.json();
+
+      if (json.success && json.data) {
+        const recalc = json.data.arrivalRecalculation;
+        const arrivalMsg = recalc?.targetDate
+          ? `Finish line: ${recalc.targetDate} (${recalc.totalCompleted} done, ${recalc.totalRemaining} left)`
+          : `Deferred ${days === 1 ? "to tomorrow" : "to weekend"} • Horizon updated`;
+
+        setUndoToast({
+          id: taskInstanceId,
+          title: taskTitle,
+          message: arrivalMsg,
+          onUndo: async () => {
+            try {
+              await fetch("/api/v1/missions/undo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  taskInstanceId,
+                  previousDate: new Date().toISOString(),
+                }),
+              });
+              fetchMission();
+            } catch (e) {
+              console.error("Failed to undo:", e);
+            }
+          },
+        });
+      } else {
+        setMission(originalMission);
+      }
+    } catch (err) {
+      console.error("Defer task failed:", err);
+      fetchMission();
+    } finally {
+      setDeferringTaskId(null);
+    }
+  };
+
+  const handleShrinkTask = async (taskInstanceId: string) => {
+    try {
+      setShrinkingTaskId(taskInstanceId);
+      const res = await fetch("/api/v1/missions/shrink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskInstanceId, targetMinutes: 10 }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setFeedbackMessage(
+          json.data?.message ||
+            "Shrunk task to a 10-minute micro-step. Just do the first 10 minutes to build momentum!"
+        );
+        fetchMission();
+      }
+    } catch (err) {
+      console.error("Shrink task failed:", err);
+    } finally {
+      setShrinkingTaskId(null);
+    }
+  };
+
+  const handleSaveJournal = async (taskInstanceId: string) => {
+    if (!journalText.trim()) return;
+    try {
+      setSavingJournal(true);
+      const res = await fetch("/api/v1/journal/from-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskInstanceId,
+          takeaway: journalText.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setJournalSavedId(taskInstanceId);
+        setJournalInputId(null);
+        setJournalText("");
+        setTimeout(() => {
+          setJournalSavedId(null);
+        }, 5000);
+      }
+    } catch (err) {
+      console.error("Failed to save journal takeaway:", err);
+    } finally {
+      setSavingJournal(false);
     }
   };
 
@@ -274,7 +436,7 @@ export default function TodayMissionPage() {
   const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-6 sm:space-y-8 pb-12">
       {/* Top Banner: Mission Command */}
       <div className="p-4 sm:p-6 rounded-2xl bg-neutral-900/80 border border-neutral-800/90 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -346,7 +508,7 @@ export default function TodayMissionPage() {
 
       {/* Jarvis Feedback Banner */}
       {feedbackMessage && (
-        <div className="p-4 rounded-xl bg-cyan-950/50 border border-cyan-800/80 flex items-start gap-3 shadow-lg">
+        <div className="p-4 rounded-xl bg-cyan-950/50 border border-cyan-800/80 flex items-start gap-3 shadow-lg animate-in fade-in duration-200">
           <Brain className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
           <div className="text-xs text-cyan-200 leading-relaxed">
             <span className="font-semibold text-cyan-300">Jarvis Insight: </span>
@@ -484,71 +646,237 @@ export default function TodayMissionPage() {
                   const isCompleted = taskInstance.status === "COMPLETED";
                   const isP0 = priority === "P0_CRITICAL";
                   const isP2 = priority === "P2_OPTIONAL";
-                  const goalTitle = taskInstance.goalTitle || taskInstance.task?.weeklyTarget?.milestone?.goal?.title || "Active Goal";
-                  const estimatedMinutes = taskInstance.estimatedMinutes || taskInstance.task?.estimatedMinutes || 30;
-                  const energy = taskInstance.requiredEnergy || taskInstance.task?.energyRequired || "MEDIUM";
+                  const goalTitle =
+                    taskInstance.goalTitle ||
+                    taskInstance.task?.weeklyTarget?.milestone?.goal?.title ||
+                    "Active Goal";
+                  const estimatedMinutes =
+                    taskInstance.estimatedMinutes || taskInstance.task?.estimatedMinutes || 30;
+                  const energy =
+                    taskInstance.requiredEnergy ||
+                    taskInstance.task?.requiredEnergy ||
+                    taskInstance.task?.energyRequired ||
+                    "MEDIUM";
 
                   return (
                     <div
                       key={taskId}
-                      onClick={() => toggleTaskStatus(taskId, taskInstance.status)}
-                      className={`group p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
+                      className={`group p-3.5 sm:p-4 rounded-2xl border transition-all ${
                         isCompleted
-                          ? "bg-neutral-950/70 border-neutral-800/40 opacity-50"
+                          ? "bg-neutral-950/70 border-neutral-800/40 opacity-75"
                           : "bg-neutral-900/60 border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900/90 shadow-sm"
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-                        <button
-                          className="w-10 h-10 -ml-1 rounded-xl flex items-center justify-center text-neutral-400 group-hover:text-cyan-400 active:scale-90 transition-all shrink-0"
-                          aria-label="Toggle task completion"
-                        >
-                          {isCompleted ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-400 animate-in zoom-in-75" />
-                          ) : (
-                            <Circle className="w-5 h-5 group-hover:text-cyan-400" />
-                          )}
-                        </button>
-
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span
-                              className={`text-xs sm:text-sm font-medium ${
-                                isCompleted
-                                  ? "line-through text-neutral-500"
-                                  : "text-neutral-200 group-hover:text-white"
-                              }`}
-                            >
-                              {taskTitle}
-                            </span>
-
-                            {isP0 && (
-                              <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-md bg-rose-950/60 text-rose-300 border border-rose-800/50 uppercase">
-                                P0 Critical
-                              </span>
+                      {/* Main Task Row */}
+                      <div
+                        onClick={() => toggleTaskStatus(taskId, taskInstance.status)}
+                        className="flex items-center justify-between gap-3 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTaskStatus(taskId, taskInstance.status);
+                            }}
+                            className="w-10 h-10 -ml-1 rounded-xl flex items-center justify-center text-neutral-400 group-hover:text-cyan-400 active:scale-90 transition-all shrink-0"
+                            aria-label="Toggle task completion"
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-400 animate-in zoom-in-75" />
+                            ) : (
+                              <Circle className="w-5 h-5 group-hover:text-cyan-400" />
                             )}
-                            {isP2 && (
-                              <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-400 uppercase">
-                                P2 Optional
-                              </span>
-                            )}
-                          </div>
+                          </button>
 
-                          <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-neutral-400 font-mono">
-                            <span className="truncate max-w-[120px] sm:max-w-none">{goalTitle}</span>
-                            <span>•</span>
-                            <span className="tabular-nums">{estimatedMinutes}m</span>
-                            <span>•</span>
-                            <span className="uppercase text-cyan-400/90">
-                              {energy} Energy
-                            </span>
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`text-xs sm:text-sm font-medium ${
+                                  isCompleted
+                                    ? "line-through text-neutral-500"
+                                    : "text-neutral-200 group-hover:text-white"
+                                }`}
+                              >
+                                {taskTitle}
+                              </span>
+
+                              {isP0 && (
+                                <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-md bg-rose-950/60 text-rose-300 border border-rose-800/50 uppercase">
+                                  P0 Critical
+                                </span>
+                              )}
+                              {isP2 && (
+                                <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-400 uppercase">
+                                  P2 Optional
+                                </span>
+                              )}
+                              {taskInstance.rescheduledCount !== undefined &&
+                                taskInstance.rescheduledCount > 0 &&
+                                !isCompleted && (
+                                  <span className="text-[9px] sm:text-[10px] font-medium px-2 py-0.5 rounded-md bg-neutral-800/90 text-neutral-400 border border-neutral-700/60 font-mono">
+                                    Shifted {taskInstance.rescheduledCount}x
+                                  </span>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-neutral-400 font-mono">
+                              <span className="truncate max-w-[120px] sm:max-w-none">{goalTitle}</span>
+                              <span>•</span>
+                              <span className="tabular-nums">{estimatedMinutes}m</span>
+                              <span>•</span>
+                              <span className="uppercase text-cyan-400/90">{energy} Energy</span>
+                            </div>
                           </div>
+                        </div>
+
+                        <div className="shrink-0 text-neutral-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all">
+                          <ArrowRight className="w-4 h-4" />
                         </div>
                       </div>
 
-                      <div className="shrink-0 text-neutral-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all">
-                        <ArrowRight className="w-4 h-4" />
-                      </div>
+                      {/* 1-Tap Deferral Options for active tasks */}
+                      {!isCompleted && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-2 pt-3 mt-3 border-t border-neutral-800/50 flex-wrap"
+                        >
+                          <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider">
+                            Slide:
+                          </span>
+                          <button
+                            onClick={() => handleDeferTask(taskId, 1, taskTitle)}
+                            disabled={deferringTaskId === taskId}
+                            title="Push this task to tomorrow. No guilt, no penalty."
+                            className="px-2.5 py-1 rounded-lg bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 text-[11px] font-medium transition-all active:scale-95 flex items-center gap-1"
+                          >
+                            <Clock className="w-3 h-3 text-cyan-400" />
+                            <span>→ Tomorrow</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeferTask(taskId, getDaysToWeekend(), taskTitle)}
+                            disabled={deferringTaskId === taskId}
+                            title="Move to this weekend when you have more bandwidth."
+                            className="px-2.5 py-1 rounded-lg bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 text-[11px] font-medium transition-all active:scale-95 flex items-center gap-1"
+                          >
+                            <Calendar className="w-3 h-3 text-purple-400" />
+                            <span>→ Weekend</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Caring Coach Intervention (3+ Postpones) */}
+                      {!isCompleted &&
+                        taskInstance.rescheduledCount !== undefined &&
+                        taskInstance.rescheduledCount >= 3 && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-3 p-3 rounded-xl bg-amber-950/25 border border-amber-800/40 space-y-2"
+                          >
+                            <div className="flex items-center gap-1.5 text-amber-300 text-xs font-semibold">
+                              <span>🤝</span>
+                              <span>Postponed {taskInstance.rescheduledCount} times — feeling resistance?</span>
+                            </div>
+                            <p className="text-[11px] text-amber-200/80 leading-snug">
+                              Big tasks feel heavy when cognitive load is high. It's completely okay if it takes time. Choose what feels right:
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                              <button
+                                onClick={() => handleShrinkTask(taskId)}
+                                disabled={shrinkingTaskId === taskId}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-medium active:scale-95 transition-all"
+                              >
+                                <Zap className="w-3 h-3 text-amber-400" />
+                                <span>{shrinkingTaskId === taskId ? "Shrinking..." : "⚡ 10-Min Micro-Step"}</span>
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setWhyAnchorModal({
+                                    isOpen: true,
+                                    taskTitle,
+                                    goalTitle,
+                                    whyReason:
+                                      taskInstance.whyReason ||
+                                      "To achieve my goals and unlock full capability.",
+                                    dreamVision:
+                                      taskInstance.dreamVision ||
+                                      "Living with mastery, calm focus, and steady momentum.",
+                                    costOfInaction:
+                                      taskInstance.costOfInaction ||
+                                      "Remaining stuck at the same level 6 months from now.",
+                                  })
+                                }
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 text-xs font-medium active:scale-95 transition-all"
+                              >
+                                <Heart className="w-3 h-3 text-rose-400" />
+                                <span>❤️ Remember My Why</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Task-to-Playbook Micro-Journaling (Completed) */}
+                      {isCompleted && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-3 pt-3 border-t border-neutral-800/60"
+                        >
+                          {journalSavedId === taskId ? (
+                            <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                              <span>Technique logged to your Life Playbook vault!</span>
+                            </div>
+                          ) : journalInputId === taskId ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-1.5 text-xs text-neutral-300">
+                                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>What did you discover or learn during this session?</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={journalText}
+                                  onChange={(e) => setJournalText(e.target.value)}
+                                  placeholder="e.g. Focused on early wrist snap; felt effortless power..."
+                                  className="flex-1 px-3 py-1.5 text-xs bg-neutral-950 border border-neutral-700 rounded-lg text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && journalText.trim()) {
+                                      handleSaveJournal(taskId);
+                                    }
+                                  }}
+                                />
+                                <button
+                                  onClick={() => handleSaveJournal(taskId)}
+                                  disabled={savingJournal || !journalText.trim()}
+                                  className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white text-xs font-medium transition-all active:scale-95 flex items-center gap-1 shrink-0"
+                                >
+                                  <span>{savingJournal ? "Saving..." : "Save"}</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setJournalInputId(null);
+                                    setJournalText("");
+                                  }}
+                                  className="px-2 py-1.5 rounded-lg text-neutral-400 hover:text-white text-xs transition-colors shrink-0"
+                                >
+                                  Skip
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setJournalInputId(taskId);
+                                setJournalText("");
+                              }}
+                              className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-cyan-400 transition-colors"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>+ Log a quick lesson to your Playbook</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -643,7 +971,75 @@ export default function TodayMissionPage() {
           )}
         </div>
       )}
+
+      {/* Floating Undo Toast (Accidental Tap Protection) */}
+      {undoToast && (
+        <FloatingUndoToast
+          message={undoToast.message}
+          onUndo={async () => {
+            const undoFn = undoToast.onUndo;
+            setUndoToast(null);
+            await undoFn();
+          }}
+          onDismiss={() => setUndoToast(null)}
+          durationMs={6000}
+        />
+      )}
+
+      {/* Why Anchor Modal */}
+      {whyAnchorModal?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-t-3xl sm:rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in slide-in-from-bottom duration-200">
+            {/* Grab handle on mobile */}
+            <div className="w-10 h-1 rounded-full bg-neutral-700/80 mx-auto -mt-2 mb-2 sm:hidden" />
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-rose-950 border border-rose-800 flex items-center justify-center text-rose-400">
+                <Heart className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Remember Your Why</h3>
+                <p className="text-xs text-neutral-400">{whyAnchorModal.goalTitle}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-4 rounded-xl bg-neutral-950/80 border border-neutral-800/80 space-y-1.5">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400">Core Purpose</span>
+                <p className="text-sm text-neutral-200 leading-snug italic">"{whyAnchorModal.whyReason}"</p>
+              </div>
+
+              {whyAnchorModal.dreamVision && (
+                <div className="p-3 rounded-xl bg-cyan-950/30 border border-cyan-800/40 space-y-1">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400">The Vision</span>
+                  <p className="text-xs text-cyan-200/90 leading-relaxed">{whyAnchorModal.dreamVision}</p>
+                </div>
+              )}
+
+              {whyAnchorModal.costOfInaction && (
+                <div className="p-3 rounded-xl bg-neutral-950/40 border border-neutral-800/50 space-y-1">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">If You Give Up</span>
+                  <p className="text-xs text-neutral-400 leading-relaxed">{whyAnchorModal.costOfInaction}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800/60 text-center">
+              <p className="text-xs text-neutral-300">
+                🌱 <span className="font-semibold text-white">No rush.</span> Achieving the goal matters more than speed. Take small steps at your own pace.
+              </p>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => setWhyAnchorModal(null)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md active:scale-95 transition-all"
+              >
+                I'm Ready • Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
