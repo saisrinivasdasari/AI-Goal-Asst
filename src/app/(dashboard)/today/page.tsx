@@ -82,6 +82,7 @@ export default function TodayMissionPage() {
   const [upcoming, setUpcoming] = useState<TaskItem[]>([]);
   const [activeTab, setActiveTab] = useState<"today" | "upcoming">("today");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
   const [pullingForward, setPullingForward] = useState(false);
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
@@ -91,25 +92,32 @@ export default function TodayMissionPage() {
   const fetchMission = async () => {
     try {
       setLoading(true);
-      const [resToday, resUpcoming] = await Promise.all([
-        fetch("/api/v1/missions/today"),
-        fetch("/api/v1/missions/upcoming"),
-      ]);
+      setLoadError(null);
 
+      const resToday = await fetch("/api/v1/missions/today");
       const jsonToday = await resToday.json();
-      if (jsonToday.success) {
-        setMission(jsonToday.data);
-      }
 
-      const jsonUpcoming = await resUpcoming.json();
-      if (jsonUpcoming.success) {
-        setUpcoming(jsonUpcoming.data || []);
+      if (jsonToday.success && jsonToday.data) {
+        setMission(jsonToday.data);
+      } else {
+        throw new Error(jsonToday.error?.message || "Failed to load today's mission data");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load mission:", err);
+      setLoadError(err.message || "Unable to reach server. Please check connection.");
     } finally {
       setLoading(false);
     }
+
+    // Lazily fetch upcoming tasks in the background without blocking today's view
+    fetch("/api/v1/missions/upcoming")
+      .then((res) => res.json())
+      .then((jsonUpcoming) => {
+        if (jsonUpcoming.success && jsonUpcoming.data) {
+          setUpcoming(jsonUpcoming.data);
+        }
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -224,7 +232,7 @@ export default function TodayMissionPage() {
     return (
       <div className="space-y-6 animate-pulse">
         {/* Hero Card Skeleton */}
-        <div className="p-6 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-4">
+        <div className="p-4 sm:p-6 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-4">
           <div className="w-32 h-4 bg-neutral-800 rounded-md" />
           <div className="w-56 h-7 bg-neutral-800 rounded-lg" />
           <div className="w-48 h-3 bg-neutral-800/60 rounded" />
@@ -239,6 +247,23 @@ export default function TodayMissionPage() {
           <div className="p-4 rounded-2xl bg-neutral-900/40 border border-neutral-800/60 h-20" />
           <div className="p-4 rounded-2xl bg-neutral-900/40 border border-neutral-800/60 h-20" />
         </div>
+      </div>
+    );
+  }
+
+  if (loadError && !mission) {
+    return (
+      <div className="p-8 text-center rounded-2xl bg-neutral-900/40 border border-rose-900/40 space-y-4">
+        <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
+        <h3 className="text-sm font-semibold text-white">Unable to Load Today's Mission</h3>
+        <p className="text-xs text-neutral-400 max-w-sm mx-auto">{loadError}</p>
+        <button
+          onClick={fetchMission}
+          className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md inline-flex items-center gap-1.5 transition-all active:scale-95"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          <span>Retry</span>
+        </button>
       </div>
     );
   }
