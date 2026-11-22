@@ -6,7 +6,7 @@ import { z } from "zod";
 
 const UndoSchema = z.object({
   taskInstanceId: z.string().min(1, "taskInstanceId is required"),
-  previousDate: z.string().min(1, "previousDate is required"),
+  previousDate: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {

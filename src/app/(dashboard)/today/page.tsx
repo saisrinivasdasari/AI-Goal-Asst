@@ -242,9 +242,12 @@ export default function TodayMissionPage() {
 
       if (json.success && json.data) {
         const recalc = json.data.arrivalRecalculation;
-        const arrivalMsg = recalc?.targetDate
-          ? `Finish line: ${recalc.targetDate} (${recalc.totalCompleted} done, ${recalc.totalRemaining} left)`
-          : `Deferred ${days === 1 ? "to tomorrow" : "to weekend"} • Horizon updated`;
+        const arrivalMsg = recalc?.message ||
+          (recalc?.targetDate
+            ? `Finish line: ${recalc.targetDate}`
+            : `Pushed ${days === 1 ? "to tomorrow" : "to weekend"} • Horizon updated`);
+
+        const previousDateToRestore = json.data.previousDate || new Date().toISOString().split("T")[0];
 
         setUndoToast({
           id: taskInstanceId,
@@ -252,17 +255,22 @@ export default function TodayMissionPage() {
           message: arrivalMsg,
           onUndo: async () => {
             try {
-              await fetch("/api/v1/missions/undo", {
+              const undoRes = await fetch("/api/v1/missions/undo", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   taskInstanceId,
-                  previousDate: new Date().toISOString(),
+                  previousDate: previousDateToRestore,
                 }),
               });
-              fetchMission();
+              const undoJson = await undoRes.json();
+              if (undoJson.success) {
+                setFeedbackMessage(`Restored "${taskTitle}" back to today's mission.`);
+              }
+              await fetchMission();
             } catch (e) {
               console.error("Failed to undo:", e);
+              await fetchMission();
             }
           },
         });
@@ -349,18 +357,54 @@ export default function TodayMissionPage() {
     }
   };
 
-  const handlePullForward = async () => {
+  const handlePullForward = async (targetInstanceId?: string) => {
     try {
       setPullingForward(true);
       setFeedbackMessage(null);
       const res = await fetch("/api/v1/missions/pull-forward", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(targetInstanceId ? { taskInstanceId: targetInstanceId } : {}),
       });
       const json = await res.json();
-      if (json.message) {
+      if (json.success && json.task) {
+        const taskTitle = json.task.title;
+        const taskInstanceId = json.task.id;
+        const previousDate = json.previousDate;
+
+        setFeedbackMessage(json.message);
+
+        // Show Undo Toast for Pull Next
+        setUndoToast({
+          id: taskInstanceId,
+          title: taskTitle,
+          message: `Pulled forward "${taskTitle}" to today`,
+          onUndo: async () => {
+            try {
+              const undoRes = await fetch("/api/v1/missions/undo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  taskInstanceId,
+                  previousDate,
+                }),
+              });
+              const undoJson = await undoRes.json();
+              if (undoJson.success) {
+                setFeedbackMessage(`Restored "${taskTitle}" back to upcoming queue.`);
+              }
+              await fetchMission();
+            } catch (e) {
+              console.error("Failed to undo pull forward:", e);
+              await fetchMission();
+            }
+          },
+        });
+
+        await fetchMission();
+      } else if (json.message) {
         setFeedbackMessage(json.message);
       }
-      fetchMission();
     } catch (err) {
       console.error("Pull forward failed:", err);
     } finally {
@@ -475,7 +519,7 @@ export default function TodayMissionPage() {
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {/* Pull Forward */}
           <button
-            onClick={handlePullForward}
+            onClick={() => handlePullForward()}
             disabled={pullingForward}
             title="Finished today's tasks or feel high energy? Pull tomorrow's task forward!"
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/60 text-amber-300 text-xs font-semibold shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
@@ -890,7 +934,7 @@ export default function TodayMissionPage() {
                 </p>
                 {upcoming.length > 0 && (
                   <button
-                    onClick={handlePullForward}
+                    onClick={() => handlePullForward()}
                     className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md inline-flex items-center gap-1.5 transition-all"
                   >
                     <Zap className="w-3.5 h-3.5" />
@@ -943,14 +987,10 @@ export default function TodayMissionPage() {
                   </div>
 
                   <button
-                    onClick={async () => {
-                      if (!task.id) return;
-                      await fetch(`/api/v1/tasks/${task.id}/status`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ status: "PENDING" }),
-                      });
-                      handlePullForward();
+                    onClick={() => {
+                      if (task.id) {
+                        handlePullForward(task.id);
+                      }
                     }}
                     className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-cyan-600 hover:text-white text-neutral-300 text-xs font-medium transition-all shrink-0 flex items-center gap-1"
                   >

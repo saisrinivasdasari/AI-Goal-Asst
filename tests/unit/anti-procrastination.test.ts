@@ -61,5 +61,36 @@ describe("Anti-Procrastination & Goal-Achiever System Tests", () => {
     // If accidentally deferred from 0, it never goes negative
     expect(undoDeferral(0)).toBe(0);
   });
+
+  it("safely parses restoredDate from ISO timestamp, YYYY-MM-DD or undefined without Invalid Date", () => {
+    const parseRestoredDate = (previousDate?: string) => {
+      const now = new Date("2026-11-22T10:00:00Z");
+      let restoredDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+      if (previousDate && typeof previousDate === "string") {
+        const cleanDateStr = previousDate.split("T")[0];
+        const parts = cleanDateStr.split("-").map(Number);
+        if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+          restoredDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+        }
+      }
+      return restoredDate;
+    };
+
+    // 1. From full ISO string
+    const d1 = parseRestoredDate("2026-11-22T07:31:04.123Z");
+    expect(isNaN(d1.getTime())).toBe(false);
+    expect(d1.toISOString().split("T")[0]).toBe("2026-11-22");
+
+    // 2. From YYYY-MM-DD
+    const d2 = parseRestoredDate("2026-11-23");
+    expect(isNaN(d2.getTime())).toBe(false);
+    expect(d2.toISOString().split("T")[0]).toBe("2026-11-23");
+
+    // 3. From undefined
+    const d3 = parseRestoredDate(undefined);
+    expect(isNaN(d3.getTime())).toBe(false);
+    expect(d3.toISOString().split("T")[0]).toBe("2026-11-22");
+  });
 });
 

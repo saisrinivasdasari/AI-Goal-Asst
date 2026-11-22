@@ -231,42 +231,70 @@ export class MissionService {
   }
 
   /**
-   * Pulls forward the next future task into today's mission checklist (Velocity boost)
+   * Pulls forward the next future task (or a specific target task) into today's mission checklist (Velocity boost)
    */
-  static async pullForwardNextTask(userId: string) {
+  static async pullForwardNextTask(userId: string, targetInstanceId?: string) {
     const now = new Date();
     const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
     const tomorrow = new Date(today);
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
-    // Find the earliest upcoming pending task scheduled after today
-    const nextTask = await prisma.taskInstance.findFirst({
-      where: {
-        scheduledDate: { gte: tomorrow },
-        status: TaskStatus.PENDING,
-        task: {
-          weeklyTarget: {
-            milestone: {
-              goal: { userId, status: "ACTIVE" },
+    let nextTask;
+    if (targetInstanceId) {
+      nextTask = await prisma.taskInstance.findFirst({
+        where: {
+          id: targetInstanceId,
+          task: {
+            weeklyTarget: {
+              milestone: {
+                goal: { userId, status: "ACTIVE" },
+              },
             },
           },
         },
-      },
-      include: {
-        task: {
-          include: {
-            weeklyTarget: {
-              include: {
-                milestone: {
-                  include: { goal: true },
+        include: {
+          task: {
+            include: {
+              weeklyTarget: {
+                include: {
+                  milestone: {
+                    include: { goal: true },
+                  },
                 },
               },
             },
           },
         },
-      },
-      orderBy: [{ scheduledDate: "asc" }, { task: { priority: "asc" } }],
-    });
+      });
+    } else {
+      nextTask = await prisma.taskInstance.findFirst({
+        where: {
+          scheduledDate: { gte: tomorrow },
+          status: TaskStatus.PENDING,
+          task: {
+            weeklyTarget: {
+              milestone: {
+                goal: { userId, status: "ACTIVE" },
+              },
+            },
+          },
+        },
+        include: {
+          task: {
+            include: {
+              weeklyTarget: {
+                include: {
+                  milestone: {
+                    include: { goal: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: [{ scheduledDate: "asc" }, { task: { priority: "asc" } }],
+      });
+    }
 
     if (!nextTask) {
       return {
@@ -275,23 +303,27 @@ export class MissionService {
       };
     }
 
+    const previousDate = nextTask.scheduledDate.toISOString().split("T")[0];
+
     const updated = await prisma.taskInstance.update({
       where: { id: nextTask.id },
       data: {
         scheduledDate: today,
-        notes: `Pulled forward on high energy momentum from ${nextTask.scheduledDate.toISOString().split("T")[0]}`,
+        notes: `Pulled forward on high energy momentum from ${previousDate}`,
       },
     });
 
     return {
       success: true,
       message: `Pulled forward "${nextTask.task.title}" to today. Outstanding velocity!`,
+      previousDate,
       task: {
         id: updated.id,
         title: nextTask.task.title,
         priority: nextTask.task.priority,
         estimatedMinutes: nextTask.task.estimatedMinutes,
         goalTitle: nextTask.task.weeklyTarget.milestone.goal.title,
+        previousDate,
       },
     };
   }
@@ -401,6 +433,7 @@ export class MissionService {
     newProjectedDate.setDate(newProjectedDate.getDate() + (days || 1));
 
     const dayLabel = days === 0 ? "this Saturday" : days === 1 ? "tomorrow" : `in ${days} days`;
+    const arrivalDateStr = newProjectedDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
     return {
       success: true,
@@ -411,14 +444,18 @@ export class MissionService {
       newDate: newDate.toISOString().split("T")[0],
       rescheduledCount: updated.rescheduledCount,
       projectedArrivalDate: newProjectedDate.toISOString().split("T")[0],
-      message: `Moved "${instance.task.title}" to ${dayLabel}. Projected arrival: ${newProjectedDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}.`,
+      arrivalRecalculation: {
+        targetDate: arrivalDateStr,
+        message: `Pushed to ${dayLabel} • Finish line adjusted to ${arrivalDateStr}`,
+      },
+      message: `Moved "${instance.task.title}" to ${dayLabel}. Projected arrival: ${arrivalDateStr}.`,
     };
   }
 
   /**
    * Instant Undo: Reverts a task to its previous date (e.g. if tapped by accident)
    */
-  static async undoTaskAction(userId: string, taskInstanceId: string, previousDate: string) {
+  static async undoTaskAction(userId: string, taskInstanceId: string, previousDate?: string) {
     const instance = await prisma.taskInstance.findFirst({
       where: {
         id: taskInstanceId,
@@ -437,14 +474,24 @@ export class MissionService {
       throw new NotFoundError("Task instance not found or access denied");
     }
 
-    const restoredDate = new Date(previousDate + "T00:00:00.000Z");
+    // Determine target restored date: default to today (UTC midnight) if not specified
+    const now = new Date();
+    let restoredDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+
+    if (previousDate && typeof previousDate === "string") {
+      const cleanDateStr = previousDate.split("T")[0];
+      const parts = cleanDateStr.split("-").map(Number);
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        restoredDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+      }
+    }
 
     const updated = await prisma.taskInstance.update({
       where: { id: instance.id },
       data: {
         scheduledDate: restoredDate,
         rescheduledCount: Math.max(0, instance.rescheduledCount - 1),
-        notes: `Restored to ${previousDate} via undo`,
+        notes: `Restored to ${restoredDate.toISOString().split("T")[0]} via undo`,
       },
     });
 
@@ -452,8 +499,8 @@ export class MissionService {
       success: true,
       taskInstanceId: updated.id,
       taskTitle: instance.task.title,
-      restoredDate: previousDate,
-      message: `Action undone. "${instance.task.title}" restored back to ${previousDate}.`,
+      restoredDate: restoredDate.toISOString().split("T")[0],
+      message: `Action undone. "${instance.task.title}" restored back to your mission.`,
     };
   }
 
