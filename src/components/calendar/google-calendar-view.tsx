@@ -454,8 +454,10 @@ export function GoogleCalendarView({
         const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-            <div className="relative w-full max-w-lg rounded-2xl bg-neutral-950 border border-neutral-800 shadow-2xl p-6 space-y-5 overflow-hidden">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+            <div className="relative w-full max-w-lg rounded-t-3xl sm:rounded-2xl bg-neutral-950 border-t sm:border border-neutral-800 shadow-2xl p-5 sm:p-6 space-y-4 sm:space-y-5 overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+              {/* Grab Handle for mobile */}
+              <div className="w-10 h-1 rounded-full bg-neutral-700/80 mx-auto -mt-1 sm:hidden shrink-0" />
               {/* Header */}
               <div className="flex items-start justify-between pb-3 border-b border-neutral-800">
                 <div>

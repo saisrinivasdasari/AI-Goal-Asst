@@ -209,33 +209,35 @@ export function RoadmapStudioModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-3xl rounded-2xl bg-neutral-900 border border-neutral-800 shadow-2xl overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-3xl rounded-t-3xl sm:rounded-2xl bg-neutral-900 border-t sm:border border-neutral-800 shadow-2xl overflow-hidden max-h-[92vh] sm:max-h-[85vh] flex flex-col my-0 sm:my-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+        {/* Grab Handle on mobile */}
+        <div className="w-10 h-1 rounded-full bg-neutral-700/80 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
         {/* Top Header */}
-        <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950/60">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-              <Compass className="w-5 h-5 text-white" />
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-950/60 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 sm:w-9 h-8 sm:h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-500/20 shrink-0">
+              <Compass className="w-4 sm:w-5 h-4 sm:w-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-tight">
+                <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
                   Goal Traveler Studio
                 </h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950 border border-cyan-800 text-cyan-300">
-                  {step === 1 ? "Step 1: Intent & Horizon" : "Step 2: Interactive Roadmap"}
+                <span className="text-[9px] sm:text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950 border border-cyan-800 text-cyan-300">
+                  {step === 1 ? "Step 1" : "Step 2"}
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-400">
+              <p className="text-[10px] sm:text-[11px] text-neutral-400">
                 {step === 1
-                  ? "Define your dream, select your time horizon, and set emotional anchors."
-                  : "Inspect, tweak, and personalize your journey tree before locking it in."}
+                  ? "Define your dream, time horizon, and emotional anchors."
+                  : "Inspect, tweak, and personalize your journey tree."}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
+            className="w-7 sm:w-8 h-7 sm:h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center text-neutral-400 hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

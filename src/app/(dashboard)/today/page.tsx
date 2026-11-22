@@ -222,9 +222,23 @@ export default function TodayMissionPage() {
 
   if (loading && !mission) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
-        <p className="text-sm font-mono text-neutral-400">Loading Today's Mission...</p>
+      <div className="space-y-6 animate-pulse">
+        {/* Hero Card Skeleton */}
+        <div className="p-6 rounded-2xl bg-neutral-900/60 border border-neutral-800/80 space-y-4">
+          <div className="w-32 h-4 bg-neutral-800 rounded-md" />
+          <div className="w-56 h-7 bg-neutral-800 rounded-lg" />
+          <div className="w-48 h-3 bg-neutral-800/60 rounded" />
+          <div className="flex gap-2 pt-2">
+            <div className="w-24 h-8 bg-neutral-800 rounded-xl" />
+            <div className="w-24 h-8 bg-neutral-800 rounded-xl" />
+          </div>
+        </div>
+        {/* Task Cards Skeleton */}
+        <div className="space-y-3">
+          <div className="p-4 rounded-2xl bg-neutral-900/40 border border-neutral-800/60 h-20" />
+          <div className="p-4 rounded-2xl bg-neutral-900/40 border border-neutral-800/60 h-20" />
+          <div className="p-4 rounded-2xl bg-neutral-900/40 border border-neutral-800/60 h-20" />
+        </div>
       </div>
     );
   }
@@ -235,44 +249,59 @@ export default function TodayMissionPage() {
   const completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Top Banner: Mission Command */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-neutral-900 via-neutral-900/90 to-neutral-950 border border-neutral-800 shadow-xl">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono uppercase tracking-wider">
-            <Compass className="w-4 h-4" />
-            <span>Daily Execution Engine</span>
+      <div className="p-4 sm:p-6 rounded-2xl bg-neutral-900/80 border border-neutral-800/90 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-cyan-400 text-[11px] font-mono uppercase tracking-wider">
+              <Compass className="w-3.5 h-3.5" />
+              <span>Daily Execution Engine</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Today's Mission</h1>
+            <p className="text-xs text-neutral-400 text-pretty">
+              Focused execution matched to your natural cognitive rhythms.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Today's Mission</h1>
-          <p className="text-xs text-neutral-400">
-            Focused execution matched to your natural cognitive rhythms.
-          </p>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-right mr-2 hidden sm:block">
-            <div className="text-2xl font-bold font-mono text-cyan-400">{completionPercent}%</div>
-            <div className="text-[11px] text-neutral-400 font-mono">
-              {completedTasks} of {totalTasks} completed
+          <div className="flex items-center gap-4 self-start sm:self-auto">
+            <div className="text-left sm:text-right">
+              <div className="text-2xl sm:text-3xl font-bold font-mono text-cyan-400 tabular-nums">
+                {completionPercent}%
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-neutral-400 font-mono">
+                {completedTasks} of {totalTasks} completed
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Pull Forward (Ahead of schedule) */}
+        {/* Progress Bar */}
+        <div className="w-full bg-neutral-950 rounded-full h-1.5 overflow-hidden border border-neutral-800/60">
+          <div
+            className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full transition-all duration-500"
+            style={{ width: `${completionPercent}%` }}
+          />
+        </div>
+
+        {/* Action Buttons Row (Thumb Friendly on Mobile) */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {/* Pull Forward */}
           <button
             onClick={handlePullForward}
             disabled={pullingForward}
             title="Finished today's tasks or feel high energy? Pull tomorrow's task forward!"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/60 text-amber-300 text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/60 text-amber-300 text-xs font-semibold shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
           >
             <Zap className={`w-3.5 h-3.5 ${pullingForward ? "animate-spin" : ""}`} />
-            <span>{pullingForward ? "Pulling..." : "Pull Next Task"}</span>
+            <span>{pullingForward ? "Pulling..." : "Pull Next"}</span>
           </button>
 
           {/* Rest / Leave Mode */}
           <button
             onClick={() => setLeaveModalOpen(true)}
             title="Need a break or vacation? Smoothly slides upcoming tasks forward with zero penalty."
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/60 text-purple-300 text-xs font-semibold shadow-md transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/60 text-purple-300 text-xs font-semibold shadow-sm transition-all active:scale-[0.98]"
           >
             <Coffee className="w-3.5 h-3.5" />
             <span>Rest / Leave</span>
@@ -282,10 +311,10 @@ export default function TodayMissionPage() {
           <button
             onClick={handleAdaptiveReschedule}
             disabled={rescheduling}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-lg shadow-cyan-600/20 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md shadow-cyan-600/15 transition-all active:scale-[0.98] disabled:opacity-50 ml-auto"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${rescheduling ? "animate-spin" : ""}`} />
-            <span>{rescheduling ? "Optimizing..." : "Adaptive Reschedule"}</span>
+            <span>{rescheduling ? "Optimizing..." : "Reschedule"}</span>
           </button>
         </div>
       </div>
@@ -303,8 +332,10 @@ export default function TodayMissionPage() {
 
       {/* Rest / Leave Modal */}
       {leaveModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-t-3xl sm:rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in slide-in-from-bottom duration-200">
+            {/* Grab handle on mobile */}
+            <div className="w-10 h-1 rounded-full bg-neutral-700/80 mx-auto -mt-2 mb-2 sm:hidden" />
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-purple-950 border border-purple-800 flex items-center justify-center text-purple-400">
                 <Coffee className="w-4 h-4" />
@@ -317,7 +348,7 @@ export default function TodayMissionPage() {
               </div>
             </div>
 
-            <p className="text-xs text-neutral-300 leading-relaxed">
+            <p className="text-xs text-neutral-300 leading-relaxed text-pretty">
               How many days of rest do you need? Your target completion date will be gently extended with no backlog snowball debt.
             </p>
 
@@ -332,7 +363,7 @@ export default function TodayMissionPage() {
                   key={preset.days}
                   onClick={() => handleTakeLeave(preset.days)}
                   disabled={applyingLeave}
-                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-purple-500/60 hover:bg-purple-950/20 text-left transition-all group disabled:opacity-50"
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-purple-500/60 hover:bg-purple-950/20 text-left transition-all active:scale-[0.98] group disabled:opacity-50"
                 >
                   <span className="text-xs font-bold text-neutral-200 group-hover:text-purple-300 block">
                     {preset.label}
@@ -345,7 +376,7 @@ export default function TodayMissionPage() {
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setLeaveModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium"
+                className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium active:scale-[0.98]"
               >
                 Cancel
               </button>
@@ -436,28 +467,28 @@ export default function TodayMissionPage() {
                     <div
                       key={taskId}
                       onClick={() => toggleTaskStatus(taskId, taskInstance.status)}
-                      className={`group p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
+                      className={`group p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
                         isCompleted
-                          ? "bg-neutral-950/60 border-neutral-800/60 opacity-60"
-                          : "bg-neutral-900/70 border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900"
+                          ? "bg-neutral-950/70 border-neutral-800/40 opacity-50"
+                          : "bg-neutral-900/60 border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900/90 shadow-sm"
                       }`}
                     >
-                      <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
                         <button
-                          className="shrink-0 text-neutral-400 group-hover:text-cyan-400 transition-colors"
+                          className="w-10 h-10 -ml-1 rounded-xl flex items-center justify-center text-neutral-400 group-hover:text-cyan-400 active:scale-90 transition-all shrink-0"
                           aria-label="Toggle task completion"
                         >
                           {isCompleted ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                            <CheckCircle2 className="w-5 h-5 text-emerald-400 animate-in zoom-in-75" />
                           ) : (
-                            <Circle className="w-5 h-5" />
+                            <Circle className="w-5 h-5 group-hover:text-cyan-400" />
                           )}
                         </button>
 
                         <div className="min-w-0 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span
-                              className={`text-sm font-medium ${
+                              className={`text-xs sm:text-sm font-medium ${
                                 isCompleted
                                   ? "line-through text-neutral-500"
                                   : "text-neutral-200 group-hover:text-white"
@@ -467,30 +498,30 @@ export default function TodayMissionPage() {
                             </span>
 
                             {isP0 && (
-                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950/60 text-rose-400 border border-rose-800/60 uppercase">
+                              <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-md bg-rose-950/60 text-rose-300 border border-rose-800/50 uppercase">
                                 P0 Critical
                               </span>
                             )}
                             {isP2 && (
-                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 uppercase">
+                              <span className="text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-400 uppercase">
                                 P2 Optional
                               </span>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-3 text-[11px] text-neutral-400 font-mono">
-                            <span>{goalTitle}</span>
+                          <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-neutral-400 font-mono">
+                            <span className="truncate max-w-[120px] sm:max-w-none">{goalTitle}</span>
                             <span>•</span>
-                            <span>{estimatedMinutes}m</span>
+                            <span className="tabular-nums">{estimatedMinutes}m</span>
                             <span>•</span>
-                            <span className="uppercase text-cyan-400/80">
+                            <span className="uppercase text-cyan-400/90">
                               {energy} Energy
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="shrink-0 text-neutral-500 group-hover:text-cyan-400 transition-colors">
+                      <div className="shrink-0 text-neutral-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all">
                         <ArrowRight className="w-4 h-4" />
                       </div>
                     </div>

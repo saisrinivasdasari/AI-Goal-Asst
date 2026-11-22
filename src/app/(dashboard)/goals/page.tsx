@@ -125,27 +125,27 @@ export default function GoalsPage() {
 
       {/* Goals Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center min-h-[40vh] space-y-4">
-          <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
-          <p className="text-sm font-mono text-neutral-400">Loading Goals...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 animate-pulse">
+          <div className="p-6 rounded-2xl bg-neutral-900/50 border border-neutral-800/80 h-52" />
+          <div className="p-6 rounded-2xl bg-neutral-900/50 border border-neutral-800/80 h-52" />
         </div>
       ) : goals.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {goals.map((goal) => {
             const progress = calculateProgress(goal);
             return (
               <Link
                 key={goal.id}
                 href={`/goals/${goal.id}`}
-                className="group p-6 rounded-2xl bg-neutral-900/70 border border-neutral-800 hover:border-cyan-500/50 hover:bg-neutral-900/90 transition-all space-y-5 flex flex-col justify-between shadow-lg relative overflow-hidden"
+                className="group p-4 sm:p-6 rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900/90 active:scale-[0.99] transition-all space-y-4 sm:space-y-5 flex flex-col justify-between shadow-lg relative overflow-hidden"
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold uppercase px-2.5 py-1 rounded-full bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-mono">
+                    <span className="text-[10px] font-semibold uppercase px-2.5 py-0.5 rounded-md bg-cyan-950/80 text-cyan-400 border border-cyan-800/60 font-mono">
                       {goal.lifeArea?.name || goal.category || "CAREER"}
                     </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-neutral-400 font-mono flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <span className="text-[11px] sm:text-xs text-neutral-400 font-mono flex items-center gap-1.5 tabular-nums">
                         <Calendar className="w-3.5 h-3.5" />
                         {new Date(goal.targetDate).toLocaleDateString()}
                       </span>
@@ -156,7 +156,7 @@ export default function GoalsPage() {
                           e.stopPropagation();
                           setCalendarGoal({ id: goal.id, title: goal.title });
                         }}
-                        className="p-1 rounded-lg text-neutral-500 hover:text-cyan-400 hover:bg-cyan-950/40 transition-colors"
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-cyan-400 hover:bg-cyan-950/40 transition-colors"
                         title="View Goal Calendar"
                       >
                         <Calendar className="w-3.5 h-3.5" />
@@ -168,7 +168,7 @@ export default function GoalsPage() {
                           e.stopPropagation();
                           setGoalToDelete({ id: goal.id, title: goal.title });
                         }}
-                        className="p-1 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
                         title="Delete Roadmap"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -176,24 +176,24 @@ export default function GoalsPage() {
                     </div>
                   </div>
 
-                  <h3 className="text-lg font-bold text-white group-hover:text-cyan-300 transition-colors">
+                  <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-cyan-300 transition-colors">
                     {goal.title}
                   </h3>
 
-                  <p className="text-xs text-neutral-400 line-clamp-2 italic leading-relaxed">
+                  <p className="text-xs text-neutral-400 line-clamp-2 italic leading-relaxed text-pretty">
                     "{goal.whyReason || goal.whyStatement || "Core focus area"}"
                   </p>
                 </div>
 
-                <div className="space-y-3 pt-4 border-t border-neutral-800/60">
+                <div className="space-y-2.5 pt-3 border-t border-neutral-800/60">
                   <div className="flex items-center justify-between text-xs font-mono">
                     <span className="text-neutral-400">Milestone Progress</span>
-                    <span className="text-cyan-400 font-semibold">{progress}%</span>
+                    <span className="text-cyan-400 font-semibold tabular-nums">{progress}%</span>
                   </div>
 
-                  <div className="w-full h-2 rounded-full bg-neutral-800 overflow-hidden">
+                  <div className="w-full h-1.5 rounded-full bg-neutral-800 overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500 rounded-full"
+                      className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-500 rounded-full"
                       style={{ width: `${progress}%` }}
                     />
                   </div>

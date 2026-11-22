@@ -232,27 +232,29 @@ export function EditRoadmapModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-neutral-950 border border-neutral-800 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="relative w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col rounded-t-3xl sm:rounded-2xl bg-neutral-950 border-t sm:border border-neutral-800 shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+        {/* Grab Handle on mobile */}
+        <div className="w-10 h-1 rounded-full bg-neutral-700/80 mx-auto mt-2.5 -mb-1 sm:hidden shrink-0" />
         {/* Header */}
-        <div className="p-5 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/50 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+        <div className="p-4 sm:p-5 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/50 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 sm:w-9 h-8 sm:h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
               <Pencil className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white tracking-tight">
+              <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
                 Edit Roadmap & Horizons
               </h2>
-              <p className="text-xs text-neutral-400">
-                Tailor milestones, weekly focus targets, and tasks to your evolving reality.
+              <p className="text-[11px] text-neutral-400">
+                Tailor milestones and targets to your evolving reality.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
             disabled={isSaving}
-            className="text-neutral-500 hover:text-neutral-300 p-1 rounded-lg transition-colors"
+            className="text-neutral-500 hover:text-neutral-300 p-1.5 rounded-lg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

@@ -75,35 +75,47 @@ export function Header() {
   const BadgeIcon = badge.icon;
 
   return (
-    <header className="h-16 border-b border-neutral-800/80 bg-neutral-950/40 backdrop-blur-md px-8 flex items-center justify-between sticky top-0 z-30">
-      <div className="flex items-center gap-4">
+    <header className="h-14 sm:h-16 border-b border-neutral-800/80 bg-neutral-950/80 backdrop-blur-xl px-4 sm:px-6 md:px-8 flex items-center justify-between sticky top-0 z-30">
+      <div className="flex items-center gap-3">
+        {/* Mobile Brand Mark */}
+        <div className="flex md:hidden items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-sm">
+            <span className="text-[11px] font-black text-white">J</span>
+          </div>
+          <span className="text-xs font-bold text-white tracking-wider">JARVIS</span>
+        </div>
+
+        {/* Desktop / Tablet Time */}
         {mounted && time ? (
-          <span className="text-xs text-neutral-400 font-mono">
+          <span className="text-xs text-neutral-400 font-mono hidden sm:inline tabular-nums">
             {time}
           </span>
         ) : (
-          <span className="inline-block w-36 h-4 bg-neutral-900/60 rounded animate-pulse" />
+          <span className="hidden sm:inline-block w-36 h-4 bg-neutral-900/60 rounded animate-pulse" />
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Real-time Energy Slot Badge */}
         {mounted ? (
-          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border ${badge.color}`}>
+          <div className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-medium border ${badge.color}`}>
             <BadgeIcon className="w-3.5 h-3.5" />
-            <span>{badge.label}</span>
+            <span className="hidden sm:inline">{badge.label}</span>
+            <span className="sm:hidden font-mono">{energySlot} SLOT</span>
           </div>
         ) : (
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border border-neutral-800 bg-neutral-900/60 text-neutral-500">
+          <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-full text-xs font-medium border border-neutral-800 bg-neutral-900/60 text-neutral-500">
             <BatteryCharging className="w-3.5 h-3.5 opacity-40" />
-            <span className="w-24 h-3 bg-neutral-800/80 rounded animate-pulse" />
+            <span className="w-16 sm:w-24 h-3 bg-neutral-800/80 rounded animate-pulse" />
           </div>
         )}
 
         {/* Capacity Indicator */}
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-neutral-900 border border-neutral-800 text-neutral-300">
-          <span className="w-2 h-2 rounded-full bg-cyan-400" />
-          <span>Cap: {capacity} hrs/wk</span>
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-medium bg-neutral-900 border border-neutral-800 text-neutral-300">
+          <span className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-cyan-400" />
+          <span className="tabular-nums">
+            <span className="hidden sm:inline">Cap: </span>{capacity}h<span className="hidden sm:inline">/wk</span>
+          </span>
         </div>
       </div>
     </header>

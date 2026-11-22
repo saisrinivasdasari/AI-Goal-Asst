@@ -107,22 +107,22 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-neutral-950 border-r border-neutral-800/80 flex flex-col h-screen sticky top-0">
+    <aside className="hidden md:flex w-64 bg-neutral-950/90 backdrop-blur-xl border-r border-neutral-800/70 flex-col h-screen sticky top-0 shrink-0 z-40">
       {/* Brand Header */}
-      <div className="p-6 border-b border-neutral-800/60 flex items-center justify-between">
+      <div className="p-5 border-b border-neutral-800/60 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-            <Sparkles className="w-5 h-5 text-white" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-500/10">
+            <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="font-semibold text-white tracking-wide text-base">JARVIS</h1>
-            <p className="text-[11px] text-neutral-400 font-mono tracking-wider">LIFE OS v2.0</p>
+            <h1 className="font-semibold text-white tracking-tight text-sm">JARVIS</h1>
+            <p className="text-[10px] text-neutral-400 font-mono tracking-wider">LIFE OS v2.0</p>
           </div>
         </div>
       </div>
 
       {/* Nav Menu */}
-      <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href || (item.href !== "/today" && pathname?.startsWith(item.href));
           const Icon = item.icon;
@@ -130,18 +130,18 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.98] ${
                 isActive
-                  ? "bg-neutral-800/90 text-cyan-400 shadow-sm border border-neutral-700/60"
+                  ? "bg-neutral-900 text-cyan-300 font-semibold border border-neutral-800 shadow-sm"
                   : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/60"
               }`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <Icon className={`w-4 h-4 ${isActive ? "text-cyan-400" : "text-neutral-400"}`} />
                 <span>{item.name}</span>
               </div>
               {item.badge && (
-                <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-400 border border-cyan-800/60">
+                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-cyan-950/80 text-cyan-400 border border-cyan-800/60">
                   {item.badge}
                 </span>
               )}
